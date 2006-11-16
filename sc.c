@@ -15,7 +15,7 @@
  */
 
 static const char __rcsid[] = 
-	"$Lassitude: software/sc/sc.c,v 1.22 2006/11/11 23:06:20 stb Exp $";
+	"$Serialconsole$";
 
 #include <sys/ioctl.h>
 #include <sys/types.h>

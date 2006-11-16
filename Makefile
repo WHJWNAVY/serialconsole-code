@@ -1,5 +1,5 @@
 #
-# $Lassitude: software/sc/Makefile,v 1.7 2006/11/11 01:23:49 stb Exp $
+# $Serialconsole$
 #
 
 ### compile options
