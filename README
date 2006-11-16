@@ -1,0 +1,20 @@
+SERIAL CONSOLE (SC) README
+
+$Lassitude: software/sc/README,v 1.2 2006/11/11 23:06:20 stb Exp $
+
+
+CHANGES
+
+0.93
+- Allow control characters specified as -e "^a" for the escape character.
+- Make DTR control optional, add Linux compatible ioctl to set/reset DTR.
+
+0.92
+First Public Release
+
+
+
+NOTES
+
+Copile with OpenWRT cross-compiler
+make sc CC=~/openwrt/trunk/staging_dir_mipsel/mipsel-linux-uclibc/bin/gcc CFLAGS=-static
