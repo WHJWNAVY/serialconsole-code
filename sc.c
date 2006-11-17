@@ -15,7 +15,7 @@
  */
 
 static const char __rcsid[] = 
-	"$Serialconsole$";
+	"$CVSHeader$";
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
