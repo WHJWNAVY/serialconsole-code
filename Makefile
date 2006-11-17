@@ -1,5 +1,5 @@
 #
-# $CVSHeader$
+# $Header$
 #
 
 ### compile options

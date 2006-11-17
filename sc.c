@@ -15,7 +15,7 @@
  */
 
 static const char __rcsid[] = 
-	"$CVSHeader$";
+	"$Header$";
 
 #include <sys/ioctl.h>
 #include <sys/types.h>
