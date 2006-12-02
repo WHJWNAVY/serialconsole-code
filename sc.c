@@ -347,14 +347,14 @@ modemcontrol(int sfd, int dtr)
 {
 #if defined(TIOCSDTR)
 	ioctl(sfd, dtr ? TIOCSDTR : TIOCCDTR);
-#elsif defined(TIOCMSET) && defined(TIOCM_DTR)
+#elif defined(TIOCMSET) && defined(TIOCM_DTR)
 	int flags;
-	if (ioctl(sfd, TIOCMGET, &i) >= 0) {
+	if (ioctl(sfd, TIOCMGET, &flags) >= 0) {
 		if (dtr)
-			i |= TIOCM_DTR;
+			flags |= TIOCM_DTR;
 		else
-			i & = ~TIOCM_DTR;
-		ioctl(sfd, TIOCMSET, &i);
+			flags &= ~TIOCM_DTR;
+		ioctl(sfd, TIOCMSET, &flags);
 	}
 #endif
 }
