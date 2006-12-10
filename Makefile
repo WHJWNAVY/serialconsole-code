@@ -13,7 +13,7 @@ CFLAGS+=	-Wall -g
 # Enable this for operating systems that have a broken poll(2)
 # implementation:
 #   Mac OS X 10.4
-CFLAGS+=	-DHAS_BROKEN_POLL
+#CFLAGS+=	-DHAS_BROKEN_POLL
 
 # device to use if none given on command line
 #CFLAGS+=	-DDEFAULTDEVICE='"cuad0"'
