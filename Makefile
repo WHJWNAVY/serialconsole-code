@@ -10,6 +10,9 @@ CC?=	cc
 # compile with debugging
 CFLAGS+=	-Wall -g
 
+# Release version
+CFLAGS+=	-DSC_VERSION='"0.94"'
+
 # Enable this for operating systems that have a broken poll(2)
 # implementation:
 #   Mac OS X 10.4

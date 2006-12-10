@@ -3,7 +3,23 @@ SERIAL CONSOLE (SC) README
 $Header$
 
 
+BUILDING
+
+If your system is POSIX compliant (or reasonably close to being so), just
+running make will generate a binary.
+
+The Makefile has a number of knobs to adjust the compiled in defaults.
+
+Some systems don't have a working implementation of poll(2), among them
+Mac OS X 10.4.  You can enable a workaround in the Makefile by adding
+-DHAS_BROKEN_POLL to the CFLAGS.
+
+
 CHANGES
+
+0.94
+- Fix DTR setting code
+- By default, do not use work-around for broken poll(2)
 
 0.93
 - Allow control characters specified as -e "^a" for the escape character.
@@ -12,9 +28,3 @@ CHANGES
 0.92
 First Public Release
 
-
-
-NOTES
-
-Copile with OpenWRT cross-compiler
-make sc CC=~/openwrt/trunk/staging_dir_mipsel/mipsel-linux-uclibc/bin/gcc CFLAGS=-static

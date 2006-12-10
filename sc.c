@@ -36,6 +36,9 @@ static const char __rcsid[] =
 #include <unistd.h>
 
 
+#if !defined(SC_VERSION)
+#define SC_VERSION "0.9-dev"
+#endif
 #if !defined(DEFAULTDEVICE)
 #define DEFAULTDEVICE	"cuad0"
 #endif
@@ -363,7 +366,7 @@ modemcontrol(int sfd, int dtr)
 static void
 usage(void)
 {
-	fprintf(stderr, "Connect to a serial device, using this system as a console.\n"
+	fprintf(stderr, "Connect to a serial device, using this system as a console, version %s.\n"
 			"usage: sc [-fmq] [-e escape] [-p parms] [-s speed] device\n"
 			"\t-f: use hardware flow control (CRTSCTS)\n"
 			"\t-m: use modem lines (!CLOCAL)\n"
@@ -372,7 +375,7 @@ usage(void)
 			"\t-p: bits per char, parity, stop bits, default \"%s\"\n"
 			"\t-s: speed, default \"%s\"\n"
 			"\tdevice, default \"%s\"\n",
-			DEFAULTPARMS, DEFAULTSPEED, DEFAULTDEVICE);
+			SC_VERSION, DEFAULTPARMS, DEFAULTSPEED, DEFAULTDEVICE);
 #if defined(TERMIOS_SPEED_IS_INT)
 	fprintf(stderr, "\tavailable speeds depend on device\n");
 #else
