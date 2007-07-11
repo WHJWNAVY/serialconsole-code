@@ -29,4 +29,4 @@ CHANGES
 - Make DTR control optional, add Linux compatible ioctl to set/reset DTR.
 
 0.92
-First Public Release
+- First Public Release
