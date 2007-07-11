@@ -98,6 +98,39 @@ struct termios_speed termios_speeds[] = {
 #if defined(B460800)
 	{ B460800, 460800 },
 #endif
+#if defined(B500000)
+	{ B500000, 500000 },
+#endif
+#if defined(B576000)
+	{ B576000, 576000 },
+#endif
+#if defined(B921600)
+	{ B921600, 921600 },
+#endif
+#if defined(B1000000)
+	{ B1000000, 1000000 },
+#endif
+#if defined(B1152000)
+	{ B1152000, 1152000 },
+#endif
+#if defined(B1500000)
+	{ B1500000, 1500000 },
+#endif
+#if defined(B2000000)
+	{ B2000000, 2000000 },
+#endif
+#if defined(B2500000)
+	{ B2500000, 2500000 },
+#endif
+#if defined(B3000000)
+	{ B3000000, 3000000 },
+#endif
+#if defined(B3500000)
+	{ B3500000, 3500000 },
+#endif
+#if defined(B4000000)
+	{ B4000000, 4000000 },
+#endif
 	{ 0, 0 }
 };
 #endif
