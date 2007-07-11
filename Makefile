@@ -32,7 +32,7 @@ CFLAGS+=	-DSC_VERSION='"0.94"'
 all:	sc
 
 sc:	sc.c
-	${CC} ${CFLAGS} -o sc sc.c
+	${CC} ${CFLAGS} -o $@ $<
 
 clean:
 	rm -f *.o sc *~
