@@ -21,6 +21,8 @@ CFLAGS+=	-DSC_VERSION='"0.94"'
 # device to use if none given on command line
 #CFLAGS+=	-DDEFAULTDEVICE='"cuad0"'
 
+#CFLAGS+=	-DDEFAULTDEVICE='"ttyS0"'	# for Linux
+
 # default speed to use
 #CFLAGS+=	-DDEFAULTSPEED='"9600"'
 
