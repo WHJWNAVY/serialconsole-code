@@ -17,6 +17,9 @@ Mac OS X 10.4.  You can enable a workaround in the Makefile by adding
 
 CHANGES
 
+0.95
+- add "-d" parameters which sets a delay after writing a newline character.
+
 0.94
 - Fix DTR setting code
 - By default, do not use work-around for broken poll(2)
@@ -27,4 +30,3 @@ CHANGES
 
 0.92
 First Public Release
-

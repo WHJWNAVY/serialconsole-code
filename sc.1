@@ -14,7 +14,7 @@
 .\"
 .\" $Header$
 .\"
-.Dd November 12, 2006
+.Dd July 11, 2007
 .Dt SC 1
 .Os
 .Sh NAME
@@ -23,6 +23,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl fmq
+.Op Fl d Ar ms
 .Op Fl e Ar escape
 .Op Fl p Ar parameters
 .Op Fl s Ar speed
@@ -48,6 +49,11 @@ will be prepended.
 .Pp
 The following options are available:
 .Bl -tag -width Ds
+.It Fl d Ar ms
+Delay further execution by
+.Ar ms
+milliseconds after a newline character is
+sent to the serial port.
 .It Fl e Ar ch
 Sets the escape character to use.  Setting the character to
 .Dq none
@@ -59,7 +65,7 @@ device driver.
 .It Fl m
 Honor the modem control lines.  Normally,
 .Nm
-sets the CLOCAL flag on the serial device to ignore modem control lines. 
+sets the CLOCAL flag on the serial device to ignore modem control lines.
 The actual effect of CLOCAL depends on the device driver.
 .It Fl p Ar bits-per-character parity stop-bits
 Set serial character format.  The first digit specifies the number of data

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006 Stefan Bethke <stb@lassitu.de>
+ * Copyright (c) 2006,2007 Stefan Bethke <stb@lassitu.de>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-static const char __rcsid[] = 
+static const char __rcsid[] =
 	"$Header$";
 
 #include <sys/ioctl.h>
@@ -108,7 +108,7 @@ enum escapestates {
 	ESCAPESTATE_WAITFOREC,
 	ESCAPESTATE_PROCESSCMD
 };
-	
+
 
 static int scrunning = 1;
 static char *path_dev = PATH_DEV "/";
@@ -129,7 +129,7 @@ parsespeed(char *speed)
 #if !defined(TERMIOS_SPEED_IS_INT)
 	struct termios_speed *ts = termios_speeds;
 #endif
-	
+
 	s = strtol(speed, &ep, 0);
 	if (ep == speed || ep[0] != '\0') {
 		warnx("Unable to parse speed \"%s\"", speed);
@@ -226,16 +226,16 @@ printparms(struct termios *ti, char *tty)
 		parity = 'N';
 	}
 	stops = ti->c_cflag & CSTOPB ? '2' : '1';
-	
+
 	fprintf(stderr, "Connected to %s at %ld %c%c%c, modem status %s, %shardware handshake\n",
-		tty, sp, bits, parity, stops, 
+		tty, sp, bits, parity, stops,
 		ti->c_cflag & CLOCAL ? "ignored" : "observed",
 		ti->c_cflag & CRTSCTS ? "" : "no ");
 }
 
 
 static int
-loop(int sfd, int escchr)
+loop(int sfd, int escchr, int msdelay)
 {
 	enum escapestates escapestate = ESCAPESTATE_WAITFOREC;
 	int i;
@@ -321,6 +321,8 @@ loop(int sfd, int escchr)
 						break;
 				}
 				i = write(sfd, &c, 1);
+				if(c == '\n' && msdelay > 0)
+					usleep(msdelay*1000);
 			}
 			if (i < 0) {
 				warn("read/write");
@@ -331,7 +333,7 @@ loop(int sfd, int escchr)
 		if (FD_ISSET(sfd, fds)) {
 #else
 		if (pfds[1].revents & POLLIN) {
-#endif	
+#endif
 			if ((i = read(sfd, &c, 1)) > 0) {
 				i = write(STDOUT_FILENO, &c, 1);
 			}
@@ -367,10 +369,11 @@ static void
 usage(void)
 {
 	fprintf(stderr, "Connect to a serial device, using this system as a console, version %s.\n"
-			"usage: sc [-fmq] [-e escape] [-p parms] [-s speed] device\n"
+			"usage: sc [-fmq] [-d ms] [-e escape] [-p parms] [-s speed] device\n"
 			"\t-f: use hardware flow control (CRTSCTS)\n"
 			"\t-m: use modem lines (!CLOCAL)\n"
 			"\t-q: don't show connect and disconnect messages\n"
+ 			"\t-d: delay in milliseconds after each newline character\n"
 			"\t-e: escape char or \"none\", default \"~\"\n"
 			"\t-p: bits per char, parity, stop bits, default \"%s\"\n"
 			"\t-s: speed, default \"%s\"\n"
@@ -381,7 +384,7 @@ usage(void)
 #else
 	{
 		struct termios_speed *ts = termios_speeds;
-		
+
 		fprintf(stderr, "\tavailable speeds: ");
 		while (ts->speed != 0) {
 			fprintf(stderr, "%ld ", ts->speed);
@@ -408,11 +411,17 @@ main(int argc, char **argv)
 	char buffer[PATH_MAX+1];
 	struct termios serialti, consoleti, tempti;
 	int ec = 0;
+	int msdelay = 0;
 	int i;
 	char c;
-	
-	while ((c = getopt(argc, argv, "e:fmp:qs:?")) != -1) {
+
+	while ((c = getopt(argc, argv, "d:e:fmp:qs:?")) != -1) {
 		switch (c) {
+			case 'd':
+				msdelay=atoi(optarg);
+				if(msdelay <= 0)
+					fprintf(stderr, "warning: ignoring negative or zero delay: %i\n", msdelay);
+				break;
 			case 'e':
 				if (strcmp(optarg, "none") == 0) {
 					escchr = -1;
@@ -452,7 +461,7 @@ main(int argc, char **argv)
 	if (argc > 1) {
 		usage();
 	}
-	
+
 	if (strchr(tty, '/') == NULL) {
 		if (strlen(path_dev) + strlen(tty) > PATH_MAX) {
 			errx(EX_USAGE, "Device name \"%s\" is too long.", tty);
@@ -523,7 +532,7 @@ main(int argc, char **argv)
 	}
 	modemcontrol(sfd, 1);
 
-	ec = loop(sfd, escchr);
+	ec = loop(sfd, escchr, msdelay);
 
 error:
 	if (sfd >= 0) {
