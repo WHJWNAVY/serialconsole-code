@@ -29,6 +29,9 @@ CFLAGS+=	-DSC_VERSION='"0.94"'
 # default parameters to use
 #CFLAGS+=	-DDEFAULTPARMS='"8n1"'
 
+### install options
+PREFIX?=/usr/local
+
 all:	sc
 
 sc:	sc.c
@@ -36,3 +39,10 @@ sc:	sc.c
 
 clean:
 	rm -f *.o sc *~
+
+install:	sc
+	install -m 755 sc $(PREFIX)/bin
+	install -m 644 sc.1 $(PREFIX)/man/man1
+
+uninstall:
+	rm -f $(PREFIX)/bin/sc $(PREFIX)/man/man1/sc.1
