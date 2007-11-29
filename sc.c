@@ -149,6 +149,26 @@ static int scrunning = 1;
 static char *path_dev = PATH_DEV "/";
 static int qflag = 0;
 
+#ifdef __CYGWIN__
+static int
+cfmakeraw(struct termios *termios_p)
+{
+  termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
+  termios_p->c_oflag &= ~OPOST;
+  termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
+  termios_p->c_cflag &= ~(CSIZE|PARENB);
+  termios_p->c_cflag |= CS8;
+  return 0;
+}
+
+static int
+cfsetspeed(struct termios *termios_p, speed_t speed)
+{
+  int r=cfsetospeed(termios_p, speed);
+  if(r<0) return r;
+  return cfsetispeed(termios_p, speed);
+}
+#endif
 
 static void
 sighandler(int sig)
@@ -607,7 +627,7 @@ main(int argc, char **argv)
 	}
 	if (tcsetattr(sfd, TCSANOW, &tempti)) {
 		ec = EX_OSERR;
-		warn("cftcsetattr(%s)", tty);
+		warn("tcsetattr(%s)", tty);
 		goto error;
 	}
 	signal(SIGHUP, sighandler);
@@ -634,7 +654,7 @@ main(int argc, char **argv)
 	cfmakeraw(&tempti);
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &tempti)) {
 		ec = EX_OSERR;
-		warn("cfmakeraw() tty");
+		warn("tcsetattr() tty");
 		goto error;
 	}
 	modemcontrol(sfd, 1);
