@@ -140,7 +140,8 @@ enum escapestates {
 	ESCAPESTATE_WAITFORCR = 0,
 	ESCAPESTATE_WAITFOREC,
 	ESCAPESTATE_PROCESSCMD,
-	ESCAPESTATE_WAITFOR2ndDIGIT,
+	ESCAPESTATE_WAITFOR1STHEXDIGIT,
+	ESCAPESTATE_WAITFOR2NDHEXDIGIT,
 };
 
 
@@ -379,34 +380,48 @@ loop(int sfd, int escchr, int msdelay)
 								scrunning = 0;
 								continue;
 
-							case 'x':
-							case 'X':
+							case 'b':
+							case 'B':
 								if(!qflag)
-									fprintf(stderr, "sending a break\r\n");
+									fprintf(stderr, "->sending a break<-\r\n");
 								tcsendbreak(sfd, 0);
 								continue;
 
+							case 'x':
+							case 'X':
+								escapestate = ESCAPESTATE_WAITFOR1STHEXDIGIT;
+								continue;
+
 							default:
-								if (isxdigit(c)) {
-									escapedigit = hex2dec(c) * 16;
-									escapestate = ESCAPESTATE_WAITFOR2ndDIGIT;
-									continue;
-								}
 								if (((unsigned char)c) != escchr) {
 									write(sfd, &escchr, 1);
 								}
 						}
 						break;
 
-					case ESCAPESTATE_WAITFOR2ndDIGIT:
+					case ESCAPESTATE_WAITFOR1STHEXDIGIT:
+						if (isxdigit(c)) {
+							escapedigit = hex2dec(c) * 16;
+							escapestate = ESCAPESTATE_WAITFOR2NDHEXDIGIT;
+						} else {
+							escapestate = ESCAPESTATE_WAITFORCR;
+							if(!qflag)
+								fprintf(stderr, "->invalid hex digit '%c'<-\r\n", c);
+						}
+						continue;
+
+					case ESCAPESTATE_WAITFOR2NDHEXDIGIT:
 						escapestate = ESCAPESTATE_WAITFORCR;
 						if(isxdigit(c)) {
 							escapedigit += hex2dec(c);
 							write(sfd, &escapedigit, 1);
 							if(!qflag)
-								fprintf(stderr, "wrote 0x%02X character\r\n", escapedigit);
+								fprintf(stderr, "->wrote 0x%02X character '%c'<-\r\n", escapedigit, isprint(escapedigit)?escapedigit:'.');
+						} else {
+							if(!qflag)
+								fprintf(stderr, "->invalid hex digit '%c'<-\r\n", c);
 						}
-						break;
+						continue;
 				}
 				i = write(sfd, &c, 1);
 				if(c == '\n' && msdelay > 0)
@@ -460,18 +475,18 @@ usage(void)
 			"usage:\tsc [-fmq] [-d ms] [-e escape] [-p parms] [-s speed] device\n"
 			"\t-f: use hardware flow control (CRTSCTS)\n"
 			"\t-m: use modem lines (!CLOCAL)\n"
-			"\t-q: don't show connect and disconnect messages\n"
+			"\t-q: don't show connect, disconnect and escape action messages\n"
  			"\t-d: delay in milliseconds after each newline character\n"
 			"\t-e: escape char or \"none\", default '~'\n"
 			"\t-p: bits per char, parity, stop bits, default \"%s\"\n"
 			"\t-s: speed, default \"%s\"\n"
 			"\tdevice, default \"%s\"\n",
 			SC_VERSION, DEFAULTPARMS, DEFAULTSPEED, DEFAULTDEVICE);
-	fprintf(stderr, "escape actions are started with the 3 or 4 character combination: CR + ~ +\n"
+	fprintf(stderr, "escape actions are started with the 3 character combination: CR + ~ +\n"
 		        "\t~ - send '~' character\n"
 		        "\t. - disconnect\n"
-		        "\tx - send break\n"
-   		        "\t<2 hex digits> - send decoded character\n");
+		        "\tb - send break\n"
+   		        "\tx<2 hex digits> - send decoded character\n");
 #if defined(TERMIOS_SPEED_IS_INT)
 	fprintf(stderr, "available speeds depend on device\n");
 #else
