@@ -139,12 +139,14 @@ struct termios_speed termios_speeds[] = {
 enum escapestates {
 	ESCAPESTATE_WAITFORCR = 0,
 	ESCAPESTATE_WAITFOREC,
-	ESCAPESTATE_PROCESSCMD
+	ESCAPESTATE_PROCESSCMD,
+	ESCAPESTATE_WAITFOR2ndDIGIT,
 };
 
 
 static int scrunning = 1;
 static char *path_dev = PATH_DEV "/";
+static int qflag = 0;
 
 
 static void
@@ -266,11 +268,42 @@ printparms(struct termios *ti, char *tty)
 		ti->c_cflag & CRTSCTS ? "" : "no ");
 }
 
+static int
+hex2dec(char c)
+{
+  switch(c)
+    {
+    case '0': return 0;
+    case '1': return 1;
+    case '2': return 2;
+    case '3': return 3;
+    case '4': return 4;
+    case '5': return 5;
+    case '6': return 6;
+    case '7': return 7;
+    case '8': return 8;
+    case '9': return 9;
+    case 'a': return 10;
+    case 'b': return 11;
+    case 'c': return 12;
+    case 'd': return 13;
+    case 'e': return 14;
+    case 'f': return 15;
+    case 'A': return 10;
+    case 'B': return 11;
+    case 'C': return 12;
+    case 'D': return 13;
+    case 'E': return 14;
+    case 'F': return 15;
+    }
+  return -1;
+}
 
 static int
 loop(int sfd, int escchr, int msdelay)
 {
 	enum escapestates escapestate = ESCAPESTATE_WAITFOREC;
+	unsigned char escapedigit;
 	int i;
 	char c;
 #if defined(HAS_BROKEN_POLL)
@@ -328,6 +361,7 @@ loop(int sfd, int escchr, int msdelay)
 							escapestate = ESCAPESTATE_WAITFOREC;
 						}
 						break;
+
 					case ESCAPESTATE_WAITFOREC:
 						if (escchr != -1 && ((unsigned char)c) == escchr) {
 							escapestate = ESCAPESTATE_PROCESSCMD;
@@ -337,19 +371,40 @@ loop(int sfd, int escchr, int msdelay)
 							escapestate = ESCAPESTATE_WAITFORCR;
 						}
 						break;
+
 					case ESCAPESTATE_PROCESSCMD:
 						escapestate = ESCAPESTATE_WAITFORCR;
-						switch (tolower(c)) {
+						switch (c) {
 							case '.':
 								scrunning = 0;
 								continue;
-							case 'b':
+
+							case 'x':
+							case 'X':
+								if(!qflag)
+									fprintf(stderr, "sending a break\r\n");
 								tcsendbreak(sfd, 0);
 								continue;
+
 							default:
+								if (isxdigit(c)) {
+									escapedigit = hex2dec(c) * 16;
+									escapestate = ESCAPESTATE_WAITFOR2ndDIGIT;
+									continue;
+								}
 								if (((unsigned char)c) != escchr) {
 									write(sfd, &escchr, 1);
 								}
+						}
+						break;
+
+					case ESCAPESTATE_WAITFOR2ndDIGIT:
+						escapestate = ESCAPESTATE_WAITFORCR;
+						if(isxdigit(c)) {
+							escapedigit += hex2dec(c);
+							write(sfd, &escapedigit, 1);
+							if(!qflag)
+								fprintf(stderr, "wrote 0x%02X character\r\n", escapedigit);
 						}
 						break;
 				}
@@ -401,24 +456,29 @@ modemcontrol(int sfd, int dtr)
 static void
 usage(void)
 {
-	fprintf(stderr, "Connect to a serial device, using this system as a console, version %s.\n"
-			"usage: sc [-fmq] [-d ms] [-e escape] [-p parms] [-s speed] device\n"
+	fprintf(stderr, "Connect to a serial device, using this system as a console. Version %s.\n"
+			"usage:\tsc [-fmq] [-d ms] [-e escape] [-p parms] [-s speed] device\n"
 			"\t-f: use hardware flow control (CRTSCTS)\n"
 			"\t-m: use modem lines (!CLOCAL)\n"
 			"\t-q: don't show connect and disconnect messages\n"
  			"\t-d: delay in milliseconds after each newline character\n"
-			"\t-e: escape char or \"none\", default \"~\"\n"
+			"\t-e: escape char or \"none\", default '~'\n"
 			"\t-p: bits per char, parity, stop bits, default \"%s\"\n"
 			"\t-s: speed, default \"%s\"\n"
 			"\tdevice, default \"%s\"\n",
 			SC_VERSION, DEFAULTPARMS, DEFAULTSPEED, DEFAULTDEVICE);
+	fprintf(stderr, "escape actions are started with the 3 or 4 character combination: CR + ~ +\n"
+		        "\t~ - send '~' character\n"
+		        "\t. - disconnect\n"
+		        "\tx - send break\n"
+   		        "\t<2 hex digits> - send decoded character\n");
 #if defined(TERMIOS_SPEED_IS_INT)
-	fprintf(stderr, "\tavailable speeds depend on device\n");
+	fprintf(stderr, "available speeds depend on device\n");
 #else
 	{
 		struct termios_speed *ts = termios_speeds;
 
-		fprintf(stderr, "\tavailable speeds: ");
+		fprintf(stderr, "available speeds: ");
 		while (ts->speed != 0) {
 			fprintf(stderr, "%ld ", ts->speed);
 			ts++;
@@ -439,7 +499,6 @@ main(int argc, char **argv)
 	char *parms = DEFAULTPARMS;
 	int fflag = 0;
 	int mflag = 0;
-	int qflag = 0;
 	int sfd = -1;
 	char buffer[PATH_MAX+1];
 	struct termios serialti, consoleti, tempti;
