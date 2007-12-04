@@ -74,8 +74,17 @@ struct termios_speed termios_speeds[] = {
 	{ B1800, 1800 },
 	{ B2400, 2400 },
 	{ B4800, 4800 },
+#if defined(B7200)
+	{ B7200, 7200 },
+#endif
 	{ B9600, 9600 },
+#if defined(B14400)
+	{ B14400, 14400 },
+#endif
 	{ B19200, 19200 },
+#if defined(B28800)
+	{ B28800, 28800 },
+#endif
 	{ B38400, 38400 },
 #if defined(B57600)
 	{ B57600, 57600 },
