@@ -44,7 +44,7 @@ install:	sc
 	[ -d $(PREFIX)/bin ] || install -m 755 -d $(PREFIX)/bin
 	install -m 755 sc $(PREFIX)/bin/
 	[ -d $(PREFIX)/man/man1 ] || install -m 755 -d $(PREFIX)/man/man1
-	install -m 644 sc.1 $(PREFIX)/man/man1
+	install -m 644 sc.1 $(PREFIX)/man/man1/
 
 uninstall:
 	rm -f $(PREFIX)/bin/sc $(PREFIX)/man/man1/sc.1
