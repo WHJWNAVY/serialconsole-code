@@ -11,7 +11,7 @@ CC?=	cc
 CFLAGS+=	-Wall -g
 
 # Release version
-CFLAGS+=	-DSC_VERSION='"0.95"'
+CFLAGS+=	-DSC_VERSION='"0.96"'
 
 # Enable this for operating systems that have a broken poll(2)
 # implementation:
@@ -22,6 +22,7 @@ CFLAGS+=	-DSC_VERSION='"0.95"'
 #CFLAGS+=	-DDEFAULTDEVICE='"cuad0"'
 
 #CFLAGS+=	-DDEFAULTDEVICE='"ttyS0"'	# for Linux
+#CFLAGS+=	-DDEFAULTDEVICE='"ttyUSB0"'	# for Linux USB devices
 
 # default speed to use
 #CFLAGS+=	-DDEFAULTSPEED='"9600"'
@@ -30,7 +31,7 @@ CFLAGS+=	-DSC_VERSION='"0.95"'
 #CFLAGS+=	-DDEFAULTPARMS='"8n1"'
 
 ### install options
-PREFIX?=/usr/local
+PREFIX?=$(DESTDIR)/usr/local
 
 all:	sc
 
