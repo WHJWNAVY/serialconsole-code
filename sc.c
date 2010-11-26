@@ -551,7 +551,7 @@ main(int argc, char **argv)
 	int i;
 	char c;
 
-	while ((c = getopt(argc, argv, "d:e:fmp:qs:?")) != -1) {
+	while ((c = getopt(argc, argv, "d:e:fhmp:qs:?")) != -1) {
 		switch (c) {
 			case 'd':
 				msdelay=atoi(optarg);
@@ -584,6 +584,7 @@ main(int argc, char **argv)
 			case 's':
 				speed = optarg;
 				break;
+			case 'h':
 			case '?':
 			default:
 				usage();
