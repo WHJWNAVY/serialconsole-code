@@ -17,6 +17,12 @@ Mac OS X 10.4.  You can enable a workaround in the Makefile by adding
 
 CHANGES
 
+0.96
+- add "-k" and "-K" parameters which send keys/bytes every second.
+  This is useful for serial consoles to enter the BIOS and you don't want to
+  press the keys yourself continuously. Use the escape action 'k' to stop
+  sending the keys/bytes.
+
 0.95
 - add "-d" parameters which sets a delay after writing a newline character.
 - allow arbitrary characters to be composed with the escape character.

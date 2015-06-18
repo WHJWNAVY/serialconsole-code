@@ -34,11 +34,8 @@ static const char __rcsid[] =
 #include <sysexits.h>
 #include <termios.h>
 #include <unistd.h>
+#include <assert.h>
 
-
-#if !defined(SC_VERSION)
-#define SC_VERSION "0.9-dev"
-#endif
 #if !defined(DEFAULTDEVICE)
 #define DEFAULTDEVICE	"cuad0"
 #endif
@@ -154,7 +151,7 @@ enum escapestates {
 };
 
 
-static int scrunning = 1;
+static volatile int scrunning = 1;
 static char *path_dev = PATH_DEV "/";
 static int qflag = 0;
 
@@ -330,28 +327,41 @@ hex2dec(char c)
 }
 
 static int
-loop(int sfd, int escchr, int msdelay)
+loop(const int sfd, const int escchr, const int msdelay, const char *key_sequence, int key_sequence_len)
 {
 	enum escapestates escapestate = ESCAPESTATE_WAITFOREC;
 	unsigned char escapedigit;
 	int i;
 	char c;
-#if defined(HAS_BROKEN_POLL)
-	/* use select(2) */
-	fd_set fds[2];
 
-	FD_ZERO(fds+1);
-	FD_SET(STDIN_FILENO, fds+1);
-	FD_SET(sfd, fds+1);
+#if defined(HAS_BROKEN_POLL)
 	while (scrunning) {
-		bcopy(fds+1, fds, sizeof(*fds));
-		if ((i = select(sfd+1, fds, NULL, NULL, NULL)) < 0
+		fd_set fds;
+		struct timeval tv;
+		struct timeval *tvp = NULL;
+
+		if (key_sequence && key_sequence_len > 0) {
+			tv.tv_sec = 1;
+			tv.tv_usec = 0;
+			tvp = &tv;
+		}
+
+		FD_ZERO(fds);
+		FD_SET(STDIN_FILENO, fds);
+		FD_SET(sfd, fds);
+
+		if ((i = select(sfd+1, fds, NULL, NULL, tvp)) < 0
 				&& errno != EINTR) {
 			warn("select()");
 			return EX_OSERR;
 		}
 #else
 	struct pollfd pfds[2];
+	int poll_timeout = -1;
+
+	if (key_sequence && key_sequence_len > 0) {
+		poll_timeout = 1000; /* milliseconds */
+	}
 
 	bzero(pfds, sizeof(pfds));
 	pfds[0].fd = STDIN_FILENO;
@@ -359,7 +369,7 @@ loop(int sfd, int escchr, int msdelay)
 	pfds[1].fd = sfd;
 	pfds[1].events = POLLIN;
 	while (scrunning) {
-		if ((i = poll(pfds, sizeof(pfds)/sizeof(pfds[0]), -1)) < 0
+		if ((i = poll(pfds, sizeof(pfds)/sizeof(pfds[0]), poll_timeout)) < 0
 				&& errno != EINTR) {
 			warn("poll()");
 			return EX_OSERR;
@@ -379,12 +389,25 @@ loop(int sfd, int escchr, int msdelay)
 			return(EX_OSERR);
 		}
 #endif
+
+		/* check timeout */
+		if (key_sequence && key_sequence_len > 0 && i == 0) {
+			i = write(sfd, key_sequence, key_sequence_len);
+			if (i != key_sequence_len) {
+				err(EX_OSERR, "could not write key sequence to serial device.");
+			}
+		}
+
 #if defined(HAS_BROKEN_POLL)
 		if (FD_ISSET(STDIN_FILENO, fds)) {
 #else
 		if (pfds[0].revents & POLLIN) {
 #endif
-			if ((i = read(STDIN_FILENO, &c, 1)) > 0) {
+			i = read(STDIN_FILENO, &c, 1);
+			if (i < 0) {
+				err(EX_OSERR, "could not read from STDIN.");
+			}
+			if (i > 0) {
 				switch (escapestate) {
 					case ESCAPESTATE_WAITFORCR:
 						if (c == '\r') {
@@ -416,6 +439,13 @@ loop(int sfd, int escchr, int msdelay)
 								tcsendbreak(sfd, 0);
 								continue;
 
+							case 'k':
+							case 'K':
+								fprintf(stderr, "->stop sending key sequence<-\r\n");
+								key_sequence = NULL;
+								key_sequence_len = 0;
+								continue;
+
 							case 'x':
 							case 'X':
 								escapestate = ESCAPESTATE_WAITFOR1STHEXDIGIT;
@@ -423,7 +453,10 @@ loop(int sfd, int escchr, int msdelay)
 
 							default:
 								if (((unsigned char)c) != escchr) {
-									write(sfd, &escchr, 1);
+									i = write(sfd, &escchr, 1);
+									if (i < 0) {
+										err(EX_OSERR, "could not write to serial device.");
+									}
 								}
 						}
 						break;
@@ -457,8 +490,7 @@ loop(int sfd, int escchr, int msdelay)
 					usleep(msdelay*1000);
 			}
 			if (i < 0) {
-				warn("read/write");
-				return(EX_OSERR);
+				err(EX_OSERR, "could not write to serial device.");
 			}
 		}
 #if defined(HAS_BROKEN_POLL)
@@ -466,12 +498,15 @@ loop(int sfd, int escchr, int msdelay)
 #else
 		if (pfds[1].revents & POLLIN) {
 #endif
-			if ((i = read(sfd, &c, 1)) > 0) {
-				i = write(STDOUT_FILENO, &c, 1);
-			}
+			i = read(sfd, &c, 1);
 			if (i < 0) {
-				warn("read/write");
-				return(EX_OSERR);
+				err(EX_OSERR, "could not read from serial device.");
+			}
+			if (i > 0) {
+				i = write(STDOUT_FILENO, &c, 1);
+				if (i < 0) {
+					err(EX_OSERR, "could not write to STDIN.");
+				}
 			}
 		}
 	}
@@ -496,12 +531,168 @@ modemcontrol(int sfd, int dtr)
 #endif
 }
 
+/**
+ * parse a key sequence.
+ * The string key_sequence is modified in place.
+ * The string key_sequence may only contain hex-digits and white space.
+ * It must have a length of at least 2 characters to parse a key.
+ * @param[in,out] key_sequence string of hex-digits on input; binary values on output.
+ * @return number of bytes parsed and converted in key_sequence.
+ */
+static int
+parse_key_sequence(char *key_sequence)
+{
+	int digits_read = 0;
+	unsigned char b = 0;
+	char *c;
+	int key_sequence_len = 0;
+
+	if (key_sequence == NULL) {
+		return 0;
+	}
+
+	for(c = key_sequence; *c; ++c) {
+		if (isspace(*c)) continue;
+		if (! isxdigit(*c)) {
+			fprintf(stderr, "invalid character in key sequence: %c (0x%02x)\n", *c, (int)*c);
+			return -1;
+		}
+		if (digits_read == 0) {
+			b = hex2dec(*c) << 4;
+		} else if (digits_read == 1) {
+			b |= hex2dec(*c);
+			key_sequence[key_sequence_len++] = b;
+			key_sequence[key_sequence_len] = 0;
+			b = 0;
+		}
+		++digits_read;
+		digits_read &= 1;
+	}
+
+	return key_sequence_len;
+}
+
+/**
+ * parse a key identifier into a key sequence.
+ * @param key_id a key identifier.
+ * @param[out] key_sequence will be set to an allocated array of bytes. The caller has to free the returned value.
+ * @param[out] key_sequence_len size of key_sequence in bytes.
+ * @return 0 if key_id is NULL;
+ *         0 if key_id is a valid identifier, key_sequence and key_sequence_len are set;
+ *        -1 if key_id is an invalid identifier;
+ *        -2 upon parameter error.
+ */
+static int
+parse_key_identifier(const char *key_id, char **key_sequence, int *key_sequence_len)
+{
+	struct key_s {
+		const char *id;
+		const char *seq;
+		const char *comment;
+	};
+
+	struct key_s key[] = {
+		{ "F1", "\x1bOP", "VT100 F1" },
+		{ "F2", "\x1bOQ", "VT100 F2" },
+		{ "F3", "\x1bOR", "VT100 F3" },
+		{ "F4", "\x1bOS", "VT100 F4" },
+		{ "xtermF1", "\x1b[11~", "xterm F1" },
+		{ "xtermF2", "\x1b[12~", "xterm F2" },
+		{ "xtermF3", "\x1b[13~", "xterm F3" },
+		{ "xtermF4", "\x1b[14~", "xterm F4" },
+		{ "F5",  "\x1b[15~", "xterm F5" },
+		{ "F6",  "\x1b[17~", "xterm F6" },
+		{ "F7",  "\x1b[18~", "xterm F7" },
+		{ "F8",  "\x1b[19~", "xterm F8" },
+		{ "F9",  "\x1b[20~", "xterm F9" },
+		{ "F10", "\x1b[21~", "xterm F10" },
+		{ "F11", "\x1b[23~", "xterm F11" },
+		{ "F12", "\x1b[24~", "xterm F12" },
+		{ "DEL", "\x1b[3~", "xterm DEL" },
+		{ NULL, NULL, NULL }
+	};
+
+	struct key_s *k;
+
+	if (key_id == NULL) {
+		return 0;
+	}
+
+	if (strcmp(key_id, "list") == 0) {
+		fprintf(stderr,
+			"id\tcomment\t\tkey sequence\n"
+			"------------------------------------------------------------------------------\n");
+		for(k = key; k->id; ++k) {
+			const char *c;
+			fprintf(stderr, "%s\t%s:\t", k->id, k->comment);
+			for(c = k->seq; *c; ++c) {
+				fprintf(stderr, "%02x ", *c);
+			}
+			fprintf(stderr, "\n");
+		}
+		return -1;
+	}
+
+	if (! key_sequence) { return -2; }
+	if (! key_sequence_len) { return -2; }
+
+	for(k = key; k->id; ++k) {
+		if (strcmp(key_id, k->id) == 0) {
+			*key_sequence = strdup(k->seq);
+			*key_sequence_len = strlen(k->seq);
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
+
+static void
+unittest()
+{
+	{
+		char *s = strdup(" 1b   5b\t 33 7e  ");
+		assert(parse_key_sequence(s) == 4);
+		assert(s[0] == 0x1b);
+		assert(s[1] == 0x5b);
+		assert(s[2] == 0x33);
+		assert(s[3] == 0x7e);
+		free(s);
+
+		assert(parse_key_sequence(NULL) == 0);
+
+		s = strdup("4");
+		assert(parse_key_sequence(s) == 0);
+		free(s);
+
+		s = strdup("44");
+		assert(parse_key_sequence(s) == 1);
+		assert(s[0] == 0x44);
+		free(s);
+	}
+	{
+		char *key_sequence;
+		int key_sequence_len;
+		assert(parse_key_identifier(NULL, &key_sequence, &key_sequence_len) == 0);
+		assert(parse_key_identifier("does not exist", &key_sequence, &key_sequence_len) < 0);
+		assert(parse_key_identifier("F1", NULL, &key_sequence_len) < 0);
+		assert(parse_key_identifier("F8", &key_sequence, NULL) < 0);
+
+		assert(parse_key_identifier("F4", &key_sequence, &key_sequence_len) == 0);
+		assert(key_sequence_len == 3);
+		assert(key_sequence[0] == 0x1b);
+		assert(key_sequence[1] == 0x4f);
+		assert(key_sequence[2] == 0x53);
+		free(key_sequence);
+	}
+}
 
 static void
 usage(void)
 {
 	fprintf(stderr, "Connect to a serial device, using this system as a console. Version %s.\n"
-			"usage:\tsc [-fmq] [-d ms] [-e escape] [-p parms] [-s speed] device\n"
+			"usage:\tsc [-fmq] [-d ms] [-e escape] [-p parms] [-s speed] [-k 'key sequence'] [-K <key>] device\n"
 			"\t-f: use hardware flow control (CRTSCTS)\n"
 			"\t-m: use modem lines (!CLOCAL)\n"
 			"\t-q: don't show connect, disconnect and escape action messages\n"
@@ -509,12 +700,15 @@ usage(void)
 			"\t-e: escape char or \"none\", default '~'\n"
 			"\t-p: bits per char, parity, stop bits, default \"%s\"\n"
 			"\t-s: speed, default \"%s\"\n"
+		        "\t-k: send key(s) once per second. 'key sequence' contains hex digits and white space.\n"
+			"\t-K: send a single key once per second. Use 'list' to show valid key identifiers.\n"
 			"\tdevice, default \"%s\"\n",
 			SC_VERSION, DEFAULTPARMS, DEFAULTSPEED, DEFAULTDEVICE);
 	fprintf(stderr, "escape actions are started with the 3 character combination: CR + ~ +\n"
 		        "\t~ - send '~' character\n"
 		        "\t. - disconnect\n"
 		        "\tb - send break\n"
+		        "\tk - stop sending the key (sequence)\n"
    		        "\tx<2 hex digits> - send decoded character\n");
 #if defined(TERMIOS_SPEED_IS_INT)
 	fprintf(stderr, "available speeds depend on device\n");
@@ -550,8 +744,12 @@ main(int argc, char **argv)
 	int msdelay = 0;
 	int i;
 	char c;
+	char *key_sequence = NULL;
+	int key_sequence_len = 0;
 
-	while ((c = getopt(argc, argv, "d:e:fhmp:qs:?")) != -1) {
+	unittest();
+
+	while ((c = getopt(argc, argv, "d:e:fhk:K:mp:qs:?")) != -1) {
 		switch (c) {
 			case 'd':
 				msdelay=atoi(optarg);
@@ -584,6 +782,18 @@ main(int argc, char **argv)
 			case 's':
 				speed = optarg;
 				break;
+			case 'k':
+				key_sequence = optarg;
+				key_sequence_len = parse_key_sequence(key_sequence);
+				if (key_sequence_len < 0) {
+					errx(EX_USAGE, "invalid key in key_sequence");
+				}
+				break;
+			case 'K':
+				if (parse_key_identifier(optarg, &key_sequence, &key_sequence_len) < 0) {
+					return EX_USAGE;
+				}
+				break;
 			case 'h':
 			case '?':
 			default:
@@ -597,6 +807,10 @@ main(int argc, char **argv)
 	}
 	if (argc > 1) {
 		usage();
+	}
+
+	if (key_sequence_len > 0) {
+		fprintf(stderr, "will send %i bytes/keys every second\n", key_sequence_len);
 	}
 
 	if (strchr(tty, '/') == NULL) {
@@ -669,7 +883,7 @@ main(int argc, char **argv)
 	}
 	modemcontrol(sfd, 1);
 
-	ec = loop(sfd, escchr, msdelay);
+	ec = loop(sfd, escchr, msdelay, key_sequence, key_sequence_len);
 
 error:
 	if (sfd >= 0) {
@@ -682,3 +896,17 @@ error:
 	if (!qflag) fprintf(stderr, "Connection closed.\n");
 	return ec;
 }
+
+/*
+ * Editor modelines  -  https://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * c-default-style: bsd
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */
