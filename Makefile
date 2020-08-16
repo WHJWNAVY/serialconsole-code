@@ -11,7 +11,7 @@ CC?=	cc
 CFLAGS+=	-Wall -g
 
 # Release version
-CFLAGS+=	-DSC_VERSION='"0.96"'
+CFLAGS+=	-DSC_VERSION='"1.0"'
 
 # Enable this for operating systems that have a broken poll(2)
 # implementation:
