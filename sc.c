@@ -33,6 +33,7 @@ static const char __rcsid[] =
 #include <signal.h>
 #include <sysexits.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 #include <assert.h>
 
@@ -363,7 +364,7 @@ loop(const int sfd, const int escchr, const int msdelay, const char *key_sequenc
 		poll_timeout = 1000; /* milliseconds */
 	}
 
-	bzero(pfds, sizeof(pfds));
+	memset(pfds, 0, sizeof(pfds));
 	pfds[0].fd = STDIN_FILENO;
 	pfds[0].events = POLLIN;
 	pfds[1].fd = sfd;
@@ -486,8 +487,10 @@ loop(const int sfd, const int escchr, const int msdelay, const char *key_sequenc
 						continue;
 				}
 				i = write(sfd, &c, 1);
-				if(c == '\n' && msdelay > 0)
-					usleep(msdelay*1000);
+				if(c == '\n' && msdelay > 0) {
+					struct timespec d = {msdelay / 1000, (msdelay % 1000 ) * 1000 * 1000};
+					nanosleep(&d, &d);
+				}
 			}
 			if (i < 0) {
 				err(EX_OSERR, "could not write to serial device.");
@@ -817,8 +820,8 @@ main(int argc, char **argv)
 		if (strlen(path_dev) + strlen(tty) > PATH_MAX) {
 			errx(EX_USAGE, "Device name \"%s\" is too long.", tty);
 		}
-		bcopy(path_dev, buffer, strlen(path_dev)+1);
-		bcopy(tty, buffer+strlen(path_dev), strlen(tty)+1);
+		memcpy(buffer, path_dev, strlen(path_dev)+1);
+		memcpy(buffer+strlen(path_dev), tty, strlen(tty)+1);
 		tty = buffer;
 	}
 	sfd = open(tty, O_RDWR);
@@ -836,7 +839,7 @@ main(int argc, char **argv)
 		err(EX_OSERR, "tcgetattr(%s)", tty);
 	}
 	/* configure serial port */
-	bcopy(&serialti, &tempti, sizeof(tempti));
+	memcpy(&tempti, &serialti, sizeof(tempti));
 	cfmakeraw(&tempti);
 	tempti.c_cc[VMIN] = 1;
 	tempti.c_cc[VTIME] = 0;
@@ -874,7 +877,7 @@ main(int argc, char **argv)
 		close(sfd);
 		err(EX_OSERR, "fcntl() tty");
 	}
-	bcopy(&consoleti, &tempti, sizeof(tempti));
+	memcpy(&tempti, &consoleti, sizeof(tempti));
 	cfmakeraw(&tempti);
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &tempti)) {
 		ec = EX_OSERR;
