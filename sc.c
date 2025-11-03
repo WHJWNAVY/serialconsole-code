@@ -743,7 +743,7 @@ main(int argc, char **argv)
 	int ec = 0;
 	int msdelay = 0;
 	int i;
-	char c;
+	int c;
 	char *key_sequence = NULL;
 	int key_sequence_len = 0;
 
